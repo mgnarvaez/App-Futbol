@@ -16,7 +16,11 @@ import {
   FORM_URL,
   sincronizacionService,
 } from "@/lib/services/sincronizacionService";
-import { obtenerInscriptosSheet, obtenerPlantelSheet } from "@/lib/sheets.functions";
+import {
+  obtenerInscriptosSheet,
+  obtenerPlantelSheet,
+  registrarBajaSheet,
+} from "@/lib/sheets.functions";
 import { useAppStore } from "@/lib/store";
 import {
   SEDES,
@@ -68,7 +72,7 @@ function Panel() {
   const { data: inscriptosSheet, refetch: refetchSheet } = useQuery({
     queryKey: ["inscriptos-sheet"],
     queryFn: () => obtenerInscriptosSheet(),
-    staleTime: 0, // Fuerza a leer siempre datos frescos de Google Sheets
+    staleTime: 0,
     refetchOnWindowFocus: true,
   });
 
@@ -79,7 +83,6 @@ function Panel() {
 
   const hoy = new Date().toISOString().slice(0, 10);
 
-  // Apertura automática: si no hay convocatoria del día, se crea y se abre sola.
   useEffect(() => {
     if (cargando || preparando.current) return;
     if (!convocatoriaActual) {
@@ -135,32 +138,8 @@ function Panel() {
     if (!convocatoriaActual) return;
     setSincronizando(true);
     try {
-      // Forzar refetch directo desde la planilla de Google
       const { data } = await refetchSheet();
       const filas = data ?? [];
-      const resultado = await sincronizacionService.sincronizarInscriptos(
-        convocatoriaActual.id,
-        filas,
-      );
-      const plantel = await obtenerPlantelSheet();
-      const pagos = await sincronizacionService.sincronizarPagos(plantel);
-      toast.success(
-        `\({resultado.nuevos} inscripto(s) nuevo(s) de\){resultado.total} en la planilla · ${pagos.deben} sin pagar`,
-      );
-      await cargarConvocatoriaDelDia();
-      await cargarJugadores();
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Error al sincronizar inscriptos",
-      );
-    } finally {
-      setSincronizando(false);
-    }
-    if (!convocatoriaActual) return;
-    setSincronizando(true);
-    try {
-      const { data } = await refetchSheet();
-      const filas = data ?? inscriptosSheet ?? [];
       const resultado = await sincronizacionService.sincronizarInscriptos(
         convocatoriaActual.id,
         filas,
@@ -198,13 +177,24 @@ function Panel() {
   };
 
   const bajar = async (inscripcion: Inscripcion) => {
+    const apodo = inscripcion.jugador?.apodo || inscripcion.jugador?.nombre || "Jugador";
+    if (!confirm(`¿Confirmás dar de baja a "${apodo}" en la planilla?`)) return;
+
     setBajando(inscripcion.id);
     try {
+      // 1. Dar de baja en el backend local/Supabase
       await convocatoriaService.darDeBaja(inscripcion);
-      toast.success(
-        `${inscripcion.jugador?.apodo || "El jugador"} se dio de baja de hoy`,
-      );
+
+      // 2. Registrar baja en la Sheet (activa F2 en TRUE y escribe en Col E y F a partir de fila 4)
+      const resSheet = await registrarBajaSheet(apodo, "Baja registrada desde App Web");
+      if (resSheet.ok) {
+        toast.success(`Baja de ${apodo} registrada en la planilla.`);
+      } else {
+        toast.error(`Local ok, pero falló Sheet: ${resSheet.mensaje}`);
+      }
+
       await cargarConvocatoriaDelDia();
+      await refetchSheet();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Error al dar de baja");
     } finally {
@@ -305,13 +295,14 @@ function Panel() {
         </CardContent>
       </Card>
 
+      {/* 1. INSCRIPTOS EN PLANILLA (Formato ultracompacto 1 línea cel) */}
       <Card>
-        <CardHeader>
+        <CardHeader className="py-3 px-4">
           <CardTitle className="text-base">
             Inscriptos en la planilla ({inscriptosSheet?.length ?? 0})
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-3 py-2">
           {!inscriptosSheet ? (
             <p className="text-sm text-muted-foreground">Leyendo la planilla…</p>
           ) : inscriptosSheet.length === 0 ? (
@@ -319,61 +310,74 @@ function Panel() {
               No hay respuestas en el formulario.
             </p>
           ) : (
-            <ul className="divide-y divide-border">
+            <div className="divide-y divide-border">
               {inscriptosSheet.map((i, idx) => (
-                <li
+                <div
                   key={`${i.email}-${idx}`}
-                  className="flex flex-wrap items-center gap-2 py-2 text-sm"
+                  className="flex items-center justify-between py-1.5 px-1 text-xs sm:text-sm whitespace-nowrap overflow-hidden"
                 >
-                  <span className="font-medium text-foreground">
-                    {i.apodo || i.email}
-                  </span>
-                  {i.vip && <Badge>VIP</Badge>}
-                  <Badge variant="outline">{i.sede ?? (i.turno || "Sin turno")}</Badge>
-                  {i.flexible && <Badge variant="secondary">Flexible</Badge>}
-                  {!i.juega_con_lluvia && (
-                    <Badge variant="destructive">No juega con lluvia</Badge>
-                  )}
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {i.fecha} {i.hora}
-                  </span>
-                </li>
+                  <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                    <span className="font-medium text-foreground truncate max-w-[130px] sm:max-w-[200px]">
+                      {i.apodo || i.email}
+                    </span>
+                    {i.vip && (
+                      <span className="bg-amber-100 text-amber-800 text-[10px] px-1 py-0.2 rounded font-bold">
+                        VIP
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="font-semibold text-primary text-xs">
+                      {i.sede ?? (i.turno || "CANTON")}
+                    </span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        i.flexible
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-zinc-100 text-zinc-600"
+                      }`}
+                    >
+                      {i.flexible ? "FLEX" : "FIJO"}
+                    </span>
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </CardContent>
       </Card>
 
+      {/* 2. ANOTADOS DE HOY (Formato compacto + Botón Dar Baja directo a Sheet) */}
       <Card>
-        <CardHeader>
+        <CardHeader className="py-3 px-4">
           <CardTitle className="text-base">
             Anotados de hoy ({inscripciones.length})
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-3 py-2">
           {inscripciones.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Todavía no sincronizaste la planilla.
             </p>
           ) : (
-            <ul className="space-y-1">
+            <div className="space-y-1">
               {inscripciones.map((i) => (
-                <li
+                <div
                   key={i.id}
-                  className="flex flex-wrap items-center gap-2 rounded-md bg-muted/60 px-3 py-2 text-sm"
+                  className="flex items-center justify-between rounded-md bg-muted/50 px-2.5 py-1.5 text-xs sm:text-sm whitespace-nowrap"
                 >
-                  <span className="truncate text-foreground">
+                  <span className="font-medium text-foreground truncate max-w-[120px] sm:max-w-[180px]">
                     {i.jugador?.apodo || i.jugador?.nombre || "Jugador"}
                   </span>
-                  <Badge variant="outline">{i.sede_preferida}</Badge>
-                  {i.flexible && <Badge variant="secondary">Flexible</Badge>}
-                  <Badge variant="outline">{i.estado}</Badge>
-                  <div className="ml-auto flex items-center gap-2">
+
+                  <div className="flex items-center gap-2 shrink-0">
                     <Button
                       size="sm"
                       variant={
                         i.jugador?.estado_pago === "DEBE" ? "destructive" : "outline"
                       }
+                      className="h-6 px-1.5 text-[10px]"
                       onClick={() =>
                         i.jugador &&
                         void actualizarEstadoPago(
@@ -386,23 +390,25 @@ function Panel() {
                     >
                       {i.jugador?.estado_pago === "DEBE" ? "Debe" : "Al día"}
                     </Button>
+
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="h-6 px-2 text-[11px] text-destructive hover:bg-destructive/10"
                       disabled={bajando === i.id}
                       onClick={() => void bajar(i)}
                     >
                       {bajando === i.id ? (
-                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        <Loader2 className="size-3 animate-spin" />
                       ) : (
-                        <UserMinus className="mr-2 size-4" />
+                        <UserMinus className="size-3 mr-1" />
                       )}
                       Bajar
                     </Button>
                   </div>
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </CardContent>
       </Card>
