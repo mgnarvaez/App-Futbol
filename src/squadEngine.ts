@@ -36,6 +36,7 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
 
   let indiceGeneral = 0;
 
+  // 1. Mapeo inicial de inscriptos crudos a procesados
   let jugadores: PlayerProcessed[] = inscriptosCrudos.map((j) => {
     const mailTrim = j.email.toLowerCase().trim();
     const pagoOk = config.pagosManuales[mailTrim] !== undefined ? config.pagosManuales[mailTrim] : true;
@@ -64,27 +65,25 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
     };
   });
 
+  // 2. Filtrado de bajas manuales del panel
   const bajasSet = new Set(config.bajasManuales.map(b => b.toLowerCase().trim()));
   jugadores = jugadores.filter(j => !bajasSet.has(j.nombre.toLowerCase().trim()));
 
-  // =========================================================================
-  // ORDEN DE PRIORIDAD ESTRICTA
-  // 1º: Los que pagaron (pagoAlDia: true) van antes que los deudores (false).
-  // 2º: Los VIP van antes que los Generales.
-  // 3º: Orden cronológico de inscripción.
-  // =========================================================================
+  // 3. Orden de prioridad estricta idéntico al script de la Sheet
   jugadores.sort((a, b) => {
-    if (a.pagoAlDia !== b.pagoAlDia) return a.pagoAlDia ? -1 : 1;
-    if (a.esVip !== b.esVip) return a.esVip ? -1 : 1;
-    if (a.timestamp === b.timestamp) return a.indice - b.indice;
+    if (a.pagoAlDia !== b.pagoAlDia) return a.pagoAlDia ? -1 : 1; // Pagados primero, deudores al final
+    if (a.esVip !== b.esVip) return a.esVip ? -1 : 1;             // VIPs antes que generales
+    if (a.timestamp === b.timestamp) return a.indice - b.indice; // Orden de inscripción
     return a.timestamp - b.timestamp;
   });
 
+  // 4. Filtro por lluvia
   const hayLluvia = config.suspensionLluvia !== "SOL";
   if (hayLluvia) {
     jugadores = jugadores.filter(j => j.juegaConLluvia);
   }
 
+  // 5. Inicialización de estados de las sedes (Activas o Canceladas)
   const sedes: Record<string, { activa: boolean; motivo: string; conv: PlayerProcessed[]; supl: PlayerProcessed[] }> = {};
   
   ordenHojas.forEach(n => {
@@ -104,15 +103,18 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
     }
   });
 
-  // 1. Asignación inicial por preferencia
+  // 6. Asignación inicial por preferencia y flexibilidad (bloqueando sedes inactivas)
   jugadores.forEach(jug => {
     let asignado = false;
+    const sedePreferidaActiva = sedes[jug.pref] && sedes[jug.pref].activa;
     
-    if (sedes[jug.pref] && sedes[jug.pref].activa && sedes[jug.pref].conv.length < reglasSedes[jug.pref]) {
+    // Intenta entrar a su preferencia si está activa y tiene cupo
+    if (sedePreferidaActiva && sedes[jug.pref].conv.length < reglasSedes[jug.pref]) {
       sedes[jug.pref].conv.push(jug);
       asignado = true;
     }
     
+    // Si no pudo y es flexible, busca en otras sedes activas
     if (!asignado && jug.flex) {
       for (let i = 0; i < ordenHojas.length; i++) {
         let otraSede = ordenHojas[i];
@@ -124,70 +126,65 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
       }
     }
     
+    // Si no entró en ninguna como titular, va a suplentes
     if (!asignado) {
-      if (sedes[jug.pref] && sedes[jug.pref].activa) {
+      if (sedePreferidaActiva) {
         sedes[jug.pref].supl.push(jug);
       } else {
         let primeraActiva = ordenHojas.find(n => sedes[n].activa);
-        if (primeraActiva) sedes[primeraActiva].supl.push(jug);
-        else if (sedes[jug.pref]) sedes[jug.pref].supl.push(jug);
+        if (primeraActiva) {
+          sedes[primeraActiva].supl.push(jug);
+        } else if (sedes[jug.pref]) {
+          sedes[jug.pref].supl.push(jug);
+        }
       }
     }
   });
 
-  // 2. OPTIMIZACIÓN Y BALANCEO: Si una sede activa queda incompleta, reubicamos flexibles para llenarla
+  // 7. Lógica de trueque y optimización para completar sedes incompletas (idéntico al Apps Script V16)
   ordenHojas.forEach(sedeIncompleta => {
     if (sedes[sedeIncompleta].activa) {
       let cupoTotal = reglasSedes[sedeIncompleta];
-      
-      // Intentamos completar la sede mientras falte gente y existan suplentes o flexibles desplazables
-      while (sedes[sedeIncompleta].conv.length < cupoTotal) {
-        let movimientoRealizado = false;
+      let faltantes = cupoTotal - sedes[sedeIncompleta].conv.length;
 
-        // Primero revisamos si hay suplentes esperando en esta misma sede incompleta
-        if (sedes[sedeIncompleta].supl.length > 0) {
-          let promovido = sedes[sedeIncompleta].supl.shift()!;
-          sedes[sedeIncompleta].conv.push(promovido);
-          movimientoRealizado = true;
-          continue;
-        }
+      if (faltantes > 0) {
+        while (sedes[sedeIncompleta].conv.length < cupoTotal) {
+          let truequeRealizado = false;
 
-        // Si no hay suplentes propios, buscamos jugadores flexibles en otras sedes llenas para hacer trueque
-        for (let i = 0; i < ordenHojas.length; i++) {
-          let sedeLlena = ordenHojas[i];
-          if (sedeLlena !== sedeIncompleta && sedes[sedeLlena].activa && sedes[sedeLlena].conv.length > 0) {
+          for (let i = 0; i < ordenHojas.length; i++) {
+            let sedeLlena = ordenHojas[i];
             
-            // Buscamos un jugador flexible en la sede llena (preferiblemente de menor prioridad / deudor si lo hubiera)
-            let indexFlexible = -1;
-            for (let j = sedes[sedeLlena].conv.length - 1; j >= 0; j--) {
-              if (sedes[sedeLlena].conv[j].flex) {
-                indexFlexible = j;
+            if (sedeLlena !== sedeIncompleta && sedes[sedeLlena].activa && sedes[sedeLlena].conv.length > 0) {
+              // Busca al jugador flexible de menor prioridad (abajo hacia arriba) en la sede llena
+              let indexFlexible = -1;
+              for (let j = sedes[sedeLlena].conv.length - 1; j >= 0; j--) {
+                if (sedes[sedeLlena].conv[j].flex) {
+                  indexFlexible = j;
+                  break;
+                }
+              }
+
+              if (indexFlexible !== -1) {
+                let jugadorFlexible = sedes[sedeLlena].conv.splice(indexFlexible, 1)[0];
+                sedes[sedeIncompleta].conv.push(jugadorFlexible);
+
+                if (sedes[sedeLlena].supl.length > 0) {
+                  let suplentePromovido = sedes[sedeLlena].supl.shift()!;
+                  sedes[sedeLlena].conv.push(suplentePromovido);
+                }
+
+                truequeRealizado = true;
                 break;
               }
             }
-
-            if (indexFlexible !== -1) {
-              let jugadorFlexible = sedes[sedeLlena].conv.splice(indexFlexible, 1)[0];
-              sedes[sedeIncompleta].conv.push(jugadorFlexible);
-
-              // Si la sede llena tenía suplentes, promovemos uno para mantener su cupo
-              if (sedes[sedeLlena].supl.length > 0) {
-                let suplentePromovido = sedes[sedeLlena].supl.shift()!;
-                sedes[sedeLlena].conv.push(suplentePromovido);
-              }
-
-              movimientoRealizado = true;
-              break;
-            }
           }
+          if (!truequeRealizado) break;
         }
-
-        if (!movimientoRealizado) break; // Si ya no hay movimientos posibles, salimos del ciclo
       }
     }
   });
 
-  // Reordenamiento final por prioridad estricta en cada sede
+  // 8. Reordenamiento final por prioridad estricta para mantener la prolijidad visual
   const comparadorPrioridad = (a: PlayerProcessed, b: PlayerProcessed) => {
     if (a.pagoAlDia !== b.pagoAlDia) return a.pagoAlDia ? -1 : 1;
     if (a.esVip !== b.esVip) return a.esVip ? -1 : 1;
