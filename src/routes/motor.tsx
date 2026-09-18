@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
-import { APPS_SCRIPT_INSCRIPTOS_URL, obtenerInscriptosSheet } from "@/lib/sheets.functions";
+import { APPS_SCRIPT_INSCRIPTOS_URL, obtenerInscriptosSheet, obtenerPlantelSheet } from "@/lib/sheets.functions";
 import { correrMotorConvocados, type EngineConfig } from '@/squadEngine';
 
 export const Route = createFileRoute('/motor')({
@@ -10,38 +10,51 @@ export const Route = createFileRoute('/motor')({
 function MotorNativoPage() {
   const [loading, setLoading] = useState(false);
   const [resultadoMotor, setResultadoMotor] = useState<any>(null);
-  const [datosSolapasScript, setDatosSolapasScript] = useState<any>(any => null);
+  const [datosSolapasScript, setDatosSolapasScript] = useState<any>(null);
   const [clavesDisponibles, setClavesDisponibles] = useState<string[]>([]);
   const [reporte, setReporte] = useState<string[]>([]);
 
   const ejecutarComparativa = async () => {
     setLoading(true);
     try {
+      // 1. Leemos las solapas del script para la comparativa visual
       const res = await fetch(APPS_SCRIPT_INSCRIPTOS_URL);
       const dataRaw = await res.json();
       const solapas = dataRaw?.solapas || dataRaw || {};
-      
       setDatosSolapasScript(solapas);
       setClavesDisponibles(Object.keys(solapas));
-      console.log("CLAVES RECIBIDAS DE GOOGLE SHEETS:", Object.keys(solapas));
 
+      // 2. Obtenemos los inscriptos y el plantel oficial para cruzar los pagos
       const inscriptos = await obtenerInscriptosSheet();
+      const plantel = await obtenerPlantelSheet();
+
+      // Mapeamos el estado de pago de cada jugador usando su email o apodo
+      // plantel trae 'pago: true' (al día) o 'false' (debe)
+      const pagosManuales: Record<string, "AL_DÍA" | "DEBE"> = {};
+      
+      plantel.forEach((j) => {
+        const estado = j.pago ? "AL_DÍA" : "DEBE";
+        if (j.email) pagosManuales[j.email.toLowerCase()] = estado;
+        if (j.apodo) pagosManuales[j.apodo.toLowerCase()] = estado;
+      });
+
+      // 3. Configuramos el motor aplicando las reglas de penalización o prioridad por pagos
       const config: EngineConfig = {
         suspensionLluvia: "SOL",
         suspensionOtra1: "NINGUNA",
         suspensionOtra2: "NINGUNA",
         puertos10vs10: false,
         bajasManuales: [],
-        pagosManuales: {},
+        pagosManuales: pagosManuales, // <-- Acá el motor local ya sabe quién debe y quién pagó
       };
 
       const sedesNativas = correrMotorConvocados(inscriptos, config);
       setResultadoMotor(sedesNativas);
 
-      setReporte([`✅ ¡Datos sincronizados! Revisa abajo las solapas detectadas.`]);
+      setReporte([`✅ ¡Motor ejecutado cruzando los estados de pago del plantel oficial! (${plantel.length} jugadores en base).`]);
     } catch (error) {
       console.error(error);
-      setReporte(["❌ Ocurrió un error al conectar con Google Sheets."]);
+      setReporte(["❌ Ocurrió un error al procesar el motor o el plantel."]);
     } finally {
       setLoading(false);
     }
@@ -49,12 +62,9 @@ function MotorNativoPage() {
 
   const obtenerJugadoresDeSolapa = (criterio: string) => {
     if (!datosSolapasScript) return [];
-
-    // Buscamos la clave que coincida de forma parcial (ej: "cantón", "sm", "puertos")
     const claveEncontrada = Object.keys(datosSolapasScript).find(k => 
       k.toLowerCase().includes(criterio.toLowerCase())
     );
-
     if (!claveEncontrada) return [];
 
     const solapa = datosSolapasScript[claveEncontrada];
@@ -73,14 +83,14 @@ function MotorNativoPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">🤖 Comparativa: Motor Local vs Script de Google</h1>
-          <p className="text-sm text-muted-foreground">Contrasta los equipos de la app frente a las solapas de la planilla.</p>
+          <p className="text-sm text-muted-foreground">Priorizando automáticamente a los jugadores al día con los pagos.</p>
         </div>
         <button
           onClick={ejecutarComparativa}
           disabled={loading}
           className="w-full sm:w-auto px-5 py-2.5 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 shadow-sm transition-colors text-center"
         >
-          {loading ? "Analizando..." : "⚖️ Ejecutar Comparativa"}
+          {loading ? "Calculando..." : "⚖️ Ejecutar Comparativa con Pagos"}
         </button>
       </div>
 
@@ -91,7 +101,7 @@ function MotorNativoPage() {
           ))}
           {clavesDisponibles.length > 0 && (
             <p className="text-xs text-muted-foreground">
-              <strong>Solapas detectadas en el JSON:</strong> {clavesDisponibles.join(", ")}
+              <strong>Solapas detectadas:</strong> {clavesDisponibles.join(", ")}
             </p>
           )}
         </div>
@@ -100,7 +110,7 @@ function MotorNativoPage() {
       {resultadoMotor && datosSolapasScript && (
         <div className="space-y-6">
           <h2 className="text-lg font-bold border-b border-border pb-2">
-            🏟️ Enfrentamiento Directo por Sede
+            🏟️ Enfrentamiento Directo por Sede (Filtro de Pagos Activo)
           </h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -118,7 +128,10 @@ function MotorNativoPage() {
                     resultadoMotor["CANTON"].conv.map((j: any, i: number) => (
                       <li key={i} className="py-1 border-b border-border/50 flex justify-between">
                         <span>{i + 1}. {j.nombre}</span>
-                        {j.esVip && <span>⭐</span>}
+                        <div className="flex gap-1">
+                          {j.esVip && <span title="VIP">⭐</span>}
+                          {j.debePlata && <span title="Debe plata" className="text-red-500 font-bold">⚠️ Debe</span>}
+                        </div>
                       </li>
                     ))
                   ) : (
@@ -156,7 +169,10 @@ function MotorNativoPage() {
                     resultadoMotor["SM"].conv.map((j: any, i: number) => (
                       <li key={i} className="py-1 border-b border-border/50 flex justify-between">
                         <span>{i + 1}. {j.nombre}</span>
-                        {j.esVip && <span>⭐</span>}
+                        <div className="flex gap-1">
+                          {j.esVip && <span title="VIP">⭐</span>}
+                          {j.debePlata && <span title="Debe plata" className="text-red-500 font-bold">⚠️ Debe</span>}
+                        </div>
                       </li>
                     ))
                   ) : (
@@ -194,7 +210,10 @@ function MotorNativoPage() {
                     resultadoMotor["PUERTOS"].conv.map((j: any, i: number) => (
                       <li key={i} className="py-1 border-b border-border/50 flex justify-between">
                         <span>{i + 1}. {j.nombre}</span>
-                        {j.esVip && <span>⭐</span>}
+                        <div className="flex gap-1">
+                          {j.esVip && <span title="VIP">⭐</span>}
+                          {j.debePlata && <span title="Debe plata" className="text-red-500 font-bold">⚠️ Debe</span>}
+                        </div>
                       </li>
                     ))
                   ) : (
