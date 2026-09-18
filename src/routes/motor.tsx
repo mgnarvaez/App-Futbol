@@ -18,7 +18,7 @@ function MotorNativoPage() {
     try {
       const res = await fetch(APPS_SCRIPT_INSCRIPTOS_URL);
       const dataRaw = await res.json();
-      const solapas = dataRaw?.solapas || {};
+      const solapas = dataRaw?.solapas || dataRaw || {};
       setDatosSolapasScript(solapas);
 
       const inscriptos = await obtenerInscriptosSheet();
@@ -34,7 +34,7 @@ function MotorNativoPage() {
       const sedesNativas = correrMotorConvocados(inscriptos, config);
       setResultadoMotor(sedesNativas);
 
-      setReporte([`✅ ¡Comparativa generada con éxito! Datos cruzados entre el motor local y las solapas del script.`]);
+      setReporte([`✅ ¡Comparativa generada con éxito!`]);
     } catch (error) {
       console.error(error);
       setReporte(["❌ Ocurrió un error al conectar con las solapas de la Sheet."]);
@@ -43,10 +43,29 @@ function MotorNativoPage() {
     }
   };
 
-  const obtenerJugadoresDeSolapa = (solapaKey: string) => {
+  // Función robusta para extraer los jugadores de la solapa sin importar cómo los devuelva el Apps Script
+  const obtenerJugadoresDeSolapa = (nombreSolapa: string) => {
     if (!datosSolapasScript) return [];
-    const solapa = datosSolapasScript[solapaKey] || datosSolapasScript[solapaKey.toLowerCase()] || {};
-    return solapa.players || solapa.convocados || [];
+
+    // Buscamos la solapa probando varias combinaciones de nombres de clave
+    const solapa = 
+      datosSolapasScript[nombreSolapa] || 
+      datosSolapasScript[nombreSolapa.toLowerCase()] || 
+      datosSolapasScript[nombreSolapa.replace(/\s+/g, "_")] ||
+      Object.keys(datosSolapasScript).find(k => k.toLowerCase().includes(nombreSolapa.toLowerCase())) ? 
+      datosSolapasScript[Object.keys(datosSolapasScript).find(k => k.toLowerCase().includes(nombreSolapa.toLowerCase()))!] : null;
+
+    if (!solapa) return [];
+
+    // Si es un arreglo directo de filas o jugadores
+    const lista = solapa.players || solapa.convocados || solapa.values || (Array.isArray(solapa) ? solapa : []);
+    
+    return lista.map((item: any) => {
+      if (typeof item === 'string') return { nombre: item };
+      return {
+        nombre: item.nombre || item.apodo || item.rawNombre || item[0] || item.email || "Jugador sin nombre"
+      };
+    }).filter((j: any) => j.nombre && j.nombre !== "Jugador sin nombre");
   };
 
   return (
@@ -113,7 +132,7 @@ function MotorNativoPage() {
                   {obtenerJugadoresDeSolapa("20 hs CANTON").length > 0 ? (
                     obtenerJugadoresDeSolapa("20 hs CANTON").map((j: any, i: number) => (
                       <li key={i} className="py-1 border-b border-border/50 flex justify-between">
-                        <span>{i + 1}. {j.nombre || j.apodo || j.rawNombre}</span>
+                        <span>{i + 1}. {j.nombre}</span>
                       </li>
                     ))
                   ) : (
@@ -151,7 +170,7 @@ function MotorNativoPage() {
                   {obtenerJugadoresDeSolapa("20:00 hs SM").length > 0 ? (
                     obtenerJugadoresDeSolapa("20:00 hs SM").map((j: any, i: number) => (
                       <li key={i} className="py-1 border-b border-border/50 flex justify-between">
-                        <span>{i + 1}. {j.nombre || j.apodo || j.rawNombre}</span>
+                        <span>{i + 1}. {j.nombre}</span>
                       </li>
                     ))
                   ) : (
@@ -189,7 +208,7 @@ function MotorNativoPage() {
                   {obtenerJugadoresDeSolapa("21:15 hs PUERTOS").length > 0 ? (
                     obtenerJugadoresDeSolapa("21:15 hs PUERTOS").map((j: any, i: number) => (
                       <li key={i} className="py-1 border-b border-border/50 flex justify-between">
-                        <span>{i + 1}. {j.nombre || j.apodo || j.rawNombre}</span>
+                        <span>{i + 1}. {j.nombre}</span>
                       </li>
                     ))
                   ) : (
