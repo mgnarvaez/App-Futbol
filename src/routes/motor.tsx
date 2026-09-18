@@ -16,13 +16,11 @@ function MotorNativoPage() {
   const ejecutarComparativa = async () => {
     setLoading(true);
     try {
-      // 1. Consultamos el Apps Script para traer las solapas de turnos (20 hs CANTON, 20:00 hs SM, 21:15 hs PUERTOS, etc.)
       const res = await fetch(APPS_SCRIPT_INSCRIPTOS_URL);
       const dataRaw = await res.json();
       const solapas = dataRaw?.solapas || {};
       setDatosSolapasScript(solapas);
 
-      // 2. Ejecutamos el motor nativo localmente
       const inscriptos = await obtenerInscriptosSheet();
       const config: EngineConfig = {
         suspensionLluvia: "SOL",
@@ -45,7 +43,6 @@ function MotorNativoPage() {
     }
   };
 
-  // Helper para extraer los jugadores de una solapa específica del script
   const obtenerJugadoresDeSolapa = (solapaKey: string) => {
     if (!datosSolapasScript) return [];
     const solapa = datosSolapasScript[solapaKey] || datosSolapasScript[solapaKey.toLowerCase()] || {};
@@ -53,12 +50,12 @@ function MotorNativoPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6 pb-20 text-gray-900 dark:text-gray-100">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6 pb-20 text-foreground">
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">🤖 Comparativa: Motor Local vs Script de Google</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Contrasta los equipos calculados en la app frente a las solapas oficiales de turnos.</p>
+          <p className="text-sm text-muted-foreground">Contrasta los equipos calculados en la app frente a las solapas oficiales de turnos.</p>
         </div>
         <button
           onClick={ejecutarComparativa}
@@ -70,9 +67,9 @@ function MotorNativoPage() {
       </div>
 
       {reporte.length > 0 && (
-        <div className="p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg">
+        <div className="p-4 bg-muted/60 border border-border rounded-lg">
           {reporte.map((r, i) => (
-            <p key={i} className="text-blue-900 dark:text-blue-200 font-medium text-sm sm:text-base">{r}</p>
+            <p key={i} className="text-foreground font-medium text-sm sm:text-base">{r}</p>
           ))}
         </div>
       )}
@@ -80,7 +77,7 @@ function MotorNativoPage() {
       {/* BLOQUE DE COMPARATIVA POR SEDE Y TURNO */}
       {resultadoMotor && datosSolapasScript && (
         <div className="space-y-6">
-          <h2 className="text-lg font-bold border-b border-gray-200 dark:border-gray-800 pb-2">
+          <h2 className="text-lg font-bold border-b border-border pb-2">
             🏟️ Enfrentamiento Directo por Sede
           </h2>
 
@@ -88,39 +85,39 @@ function MotorNativoPage() {
             
             {/* --- CANTON --- */}
             <div className="space-y-4">
-              <div className="bg-emerald-50 dark:bg-emerald-950/30 p-3 rounded-lg border border-emerald-200 dark:border-emerald-800 text-center">
-                <h3 className="font-bold text-emerald-900 dark:text-emerald-200">CANTON (20 hs)</h3>
+              <div className="bg-primary/10 p-3 rounded-lg border border-border text-center">
+                <h3 className="font-bold text-primary">CANTON (20 hs)</h3>
               </div>
 
               {/* Lado Motor Local */}
-              <div className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 rounded-xl shadow-sm space-y-2">
-                <span className="text-xs font-semibold uppercase text-gray-400">🤖 Motor Local (App)</span>
+              <div className="border border-border bg-card p-4 rounded-xl shadow-sm space-y-2">
+                <span className="text-xs font-semibold uppercase text-muted-foreground">🤖 Motor Local (App)</span>
                 <ul className="text-sm space-y-1">
                   {resultadoMotor["CANTON"]?.conv?.length > 0 ? (
                     resultadoMotor["CANTON"].conv.map((j: any, i: number) => (
-                      <li key={i} className="py-1 border-b border-gray-50 dark:border-gray-800/50 flex justify-between">
+                      <li key={i} className="py-1 border-b border-border/50 flex justify-between">
                         <span>{i + 1}. {j.nombre}</span>
                         {j.esVip && <span>⭐</span>}
                       </li>
                     ))
                   ) : (
-                    <p className="text-xs text-gray-400 italic">Sin jugadores asignados</p>
+                    <p className="text-xs text-muted-foreground italic">Sin jugadores asignados</p>
                   )}
                 </ul>
               </div>
 
               {/* Lado Script Google */}
-              <div className="border border-blue-200 dark:border-blue-900 bg-blue-50/30 dark:bg-gray-900 p-4 rounded-xl shadow-sm space-y-2">
-                <span className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-400">📊 Solapa Script ("20 hs CANTON")</span>
+              <div className="border border-border bg-card/60 p-4 rounded-xl shadow-sm space-y-2">
+                <span className="text-xs font-semibold uppercase text-muted-foreground">📊 Solapa Script ("20 hs CANTON")</span>
                 <ul className="text-sm space-y-1">
                   {obtenerJugadoresDeSolapa("20 hs CANTON").length > 0 ? (
                     obtenerJugadoresDeSolapa("20 hs CANTON").map((j: any, i: number) => (
-                      <li key={i} className="py-1 border-b border-blue-100 dark:border-gray-800/50 flex justify-between">
+                      <li key={i} className="py-1 border-b border-border/50 flex justify-between">
                         <span>{i + 1}. {j.nombre || j.apodo || j.rawNombre}</span>
                       </li>
                     ))
                   ) : (
-                    <p className="text-xs text-gray-400 italic">No se encontraron datos en la solapa o nombre distinto</p>
+                    <p className="text-xs text-muted-foreground italic">No se encontraron datos en la solapa</p>
                   )}
                 </ul>
               </div>
@@ -128,37 +125,37 @@ function MotorNativoPage() {
 
             {/* --- SAN MARTIN (SM) --- */}
             <div className="space-y-4">
-              <div className="bg-emerald-50 dark:bg-emerald-950/30 p-3 rounded-lg border border-emerald-200 dark:border-emerald-800 text-center">
-                <h3 className="font-bold text-emerald-900 dark:text-emerald-200">SAN MARTÍN (20:00 hs)</h3>
+              <div className="bg-primary/10 p-3 rounded-lg border border-border text-center">
+                <h3 className="font-bold text-primary">SAN MARTÍN (20:00 hs)</h3>
               </div>
 
-              <div className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 rounded-xl shadow-sm space-y-2">
-                <span className="text-xs font-semibold uppercase text-gray-400">🤖 Motor Local (App)</span>
+              <div className="border border-border bg-card p-4 rounded-xl shadow-sm space-y-2">
+                <span className="text-xs font-semibold uppercase text-muted-foreground">🤖 Motor Local (App)</span>
                 <ul className="text-sm space-y-1">
                   {resultadoMotor["SM"]?.conv?.length > 0 ? (
                     resultadoMotor["SM"].conv.map((j: any, i: number) => (
-                      <li key={i} className="py-1 border-b border-gray-50 dark:border-gray-800/50 flex justify-between">
+                      <li key={i} className="py-1 border-b border-border/50 flex justify-between">
                         <span>{i + 1}. {j.nombre}</span>
                         {j.esVip && <span>⭐</span>}
                       </li>
                     ))
                   ) : (
-                    <p className="text-xs text-gray-400 italic">Sin jugadores asignados</p>
+                    <p className="text-xs text-muted-foreground italic">Sin jugadores asignados</p>
                   )}
                 </ul>
               </div>
 
-              <div className="border border-blue-200 dark:border-blue-900 bg-blue-50/30 dark:bg-gray-900 p-4 rounded-xl shadow-sm space-y-2">
-                <span className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-400">📊 Solapa Script ("20:00 hs SM")</span>
+              <div className="border border-border bg-card/60 p-4 rounded-xl shadow-sm space-y-2">
+                <span className="text-xs font-semibold uppercase text-muted-foreground">📊 Solapa Script ("20:00 hs SM")</span>
                 <ul className="text-sm space-y-1">
                   {obtenerJugadoresDeSolapa("20:00 hs SM").length > 0 ? (
                     obtenerJugadoresDeSolapa("20:00 hs SM").map((j: any, i: number) => (
-                      <li key={i} className="py-1 border-b border-blue-100 dark:border-gray-800/50 flex justify-between">
+                      <li key={i} className="py-1 border-b border-border/50 flex justify-between">
                         <span>{i + 1}. {j.nombre || j.apodo || j.rawNombre}</span>
                       </li>
                     ))
                   ) : (
-                    <p className="text-xs text-gray-400 italic">No se encontraron datos en la solapa</p>
+                    <p className="text-xs text-muted-foreground italic">No se encontraron datos en la solapa</p>
                   )}
                 </ul>
               </div>
@@ -166,37 +163,37 @@ function MotorNativoPage() {
 
             {/* --- PUERTOS --- */}
             <div className="space-y-4">
-              <div className="bg-emerald-50 dark:bg-emerald-950/30 p-3 rounded-lg border border-emerald-200 dark:border-emerald-800 text-center">
-                <h3 className="font-bold text-emerald-900 dark:text-emerald-200">PUERTOS (21:15 hs)</h3>
+              <div className="bg-primary/10 p-3 rounded-lg border border-border text-center">
+                <h3 className="font-bold text-primary">PUERTOS (21:15 hs)</h3>
               </div>
 
-              <div className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 rounded-xl shadow-sm space-y-2">
-                <span className="text-xs font-semibold uppercase text-gray-400">🤖 Motor Local (App)</span>
+              <div className="border border-border bg-card p-4 rounded-xl shadow-sm space-y-2">
+                <span className="text-xs font-semibold uppercase text-muted-foreground">🤖 Motor Local (App)</span>
                 <ul className="text-sm space-y-1">
                   {resultadoMotor["PUERTOS"]?.conv?.length > 0 ? (
                     resultadoMotor["PUERTOS"].conv.map((j: any, i: number) => (
-                      <li key={i} className="py-1 border-b border-gray-50 dark:border-gray-800/50 flex justify-between">
+                      <li key={i} className="py-1 border-b border-border/50 flex justify-between">
                         <span>{i + 1}. {j.nombre}</span>
                         {j.esVip && <span>⭐</span>}
                       </li>
                     ))
                   ) : (
-                    <p className="text-xs text-gray-400 italic">Sin jugadores asignados</p>
+                    <p className="text-xs text-muted-foreground italic">Sin jugadores asignados</p>
                   )}
                 </ul>
               </div>
 
-              <div className="border border-blue-200 dark:border-blue-900 bg-blue-50/30 dark:bg-gray-900 p-4 rounded-xl shadow-sm space-y-2">
-                <span className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-400">📊 Solapa Script ("21:15 hs PUERTOS")</span>
+              <div className="border border-border bg-card/60 p-4 rounded-xl shadow-sm space-y-2">
+                <span className="text-xs font-semibold uppercase text-muted-foreground">📊 Solapa Script ("21:15 hs PUERTOS")</span>
                 <ul className="text-sm space-y-1">
                   {obtenerJugadoresDeSolapa("21:15 hs PUERTOS").length > 0 ? (
                     obtenerJugadoresDeSolapa("21:15 hs PUERTOS").map((j: any, i: number) => (
-                      <li key={i} className="py-1 border-b border-blue-100 dark:border-gray-800/50 flex justify-between">
+                      <li key={i} className="py-1 border-b border-border/50 flex justify-between">
                         <span>{i + 1}. {j.nombre || j.apodo || j.rawNombre}</span>
                       </li>
                     ))
                   ) : (
-                    <p className="text-xs text-gray-400 italic">No se encontraron datos en la solapa</p>
+                    <p className="text-xs text-muted-foreground italic">No se encontraron datos en la solapa</p>
                   )}
                 </ul>
               </div>
