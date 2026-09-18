@@ -28,30 +28,28 @@ function MotorNativoPage() {
       const inscriptos = await obtenerInscriptosSheet();
       const plantel = await obtenerPlantelSheet();
 
-      // Mapeamos el estado de pago de cada jugador usando su email o apodo
-      // plantel trae 'pago: true' (al día) o 'false' (debe)
-      const pagosManuales: Record<string, "AL_DÍA" | "DEBE"> = {};
+      // Mapeamos el estado de pago usando booleanos puros (true = al día, false = debe)
+      const pagosManuales: Record<string, boolean> = {};
       
       plantel.forEach((j) => {
-        const estado = j.pago ? "AL_DÍA" : "DEBE";
-        if (j.email) pagosManuales[j.email.toLowerCase()] = estado;
-        if (j.apodo) pagosManuales[j.apodo.toLowerCase()] = estado;
+        if (j.email) pagosManuales[j.email.toLowerCase().trim()] = j.pago;
+        if (j.apodo) pagosManuales[j.apodo.toLowerCase().trim()] = j.pago;
       });
 
-      // 3. Configuramos el motor aplicando las reglas de penalización o prioridad por pagos
+      // 3. Configuramos el motor pasando los pagos como booleanos exactos
       const config: EngineConfig = {
         suspensionLluvia: "SOL",
         suspensionOtra1: "NINGUNA",
         suspensionOtra2: "NINGUNA",
         puertos10vs10: false,
         bajasManuales: [],
-        pagosManuales: pagosManuales, // <-- Acá el motor local ya sabe quién debe y quién pagó
+        pagosManuales: pagosManuales, 
       };
 
       const sedesNativas = correrMotorConvocados(inscriptos, config);
       setResultadoMotor(sedesNativas);
 
-      setReporte([`✅ ¡Motor ejecutado cruzando los estados de pago del plantel oficial! (${plantel.length} jugadores en base).`]);
+      setReporte([`✅ ¡Motor ejecutado con éxito! Se procesaron ${inscriptos.length} inscriptos y ${plantel.length} jugadores en el plantel.`]);
     } catch (error) {
       console.error(error);
       setReporte(["❌ Ocurrió un error al procesar el motor o el plantel."]);
@@ -130,7 +128,7 @@ function MotorNativoPage() {
                         <span>{i + 1}. {j.nombre}</span>
                         <div className="flex gap-1">
                           {j.esVip && <span title="VIP">⭐</span>}
-                          {j.debePlata && <span title="Debe plata" className="text-red-500 font-bold">⚠️ Debe</span>}
+                          {!j.pagoAlDia && <span title="Debe plata" className="text-red-500 font-bold">⚠️ Debe</span>}
                         </div>
                       </li>
                     ))
@@ -171,7 +169,7 @@ function MotorNativoPage() {
                         <span>{i + 1}. {j.nombre}</span>
                         <div className="flex gap-1">
                           {j.esVip && <span title="VIP">⭐</span>}
-                          {j.debePlata && <span title="Debe plata" className="text-red-500 font-bold">⚠️ Debe</span>}
+                          {!j.pagoAlDia && <span title="Debe plata" className="text-red-500 font-bold">⚠️ Debe</span>}
                         </div>
                       </li>
                     ))
@@ -212,7 +210,7 @@ function MotorNativoPage() {
                         <span>{i + 1}. {j.nombre}</span>
                         <div className="flex gap-1">
                           {j.esVip && <span title="VIP">⭐</span>}
-                          {j.debePlata && <span title="Debe plata" className="text-red-500 font-bold">⚠️ Debe</span>}
+                          {!j.pagoAlDia && <span title="Debe plata" className="text-red-500 font-bold">⚠️ Debe</span>}
                         </div>
                       </li>
                     ))
