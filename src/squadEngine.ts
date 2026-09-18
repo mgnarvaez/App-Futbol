@@ -38,6 +38,8 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
 
   let jugadores: PlayerProcessed[] = inscriptosCrudos.map((j) => {
     const mailTrim = j.email.toLowerCase().trim();
+    // Si no está especificado en el registro de pagos, por defecto asumimos true, 
+    // pero si config.pagosManuales lo marca en false, se respeta estrictamente.
     const pagoOk = config.pagosManuales[mailTrim] !== undefined ? config.pagosManuales[mailTrim] : true;
     
     let timestampNum = Date.now();
@@ -67,6 +69,12 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
   const bajasSet = new Set(config.bajasManuales.map(b => b.toLowerCase().trim()));
   jugadores = jugadores.filter(j => !bajasSet.has(j.nombre.toLowerCase().trim()));
 
+  // =========================================================================
+  // ORDEN DE PRIORIDAD ESTRICTA (IGUAL QUE EL APPS SCRIPT)
+  // 1º: Los que pagaron (pagoAlDia: true) van antes que los que deben (false).
+  // 2º: Los VIP van antes que los Generales.
+  // 3º: Orden cronológico de inscripción (timestamp / orden de llegada).
+  // =========================================================================
   jugadores.sort((a, b) => {
     if (a.pagoAlDia !== b.pagoAlDia) return a.pagoAlDia ? -1 : 1;
     if (a.esVip !== b.esVip) return a.esVip ? -1 : 1;
@@ -98,6 +106,7 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
     }
   });
 
+  // Asignación inicial por preferencia y flexibilidad
   jugadores.forEach(jug => {
     let asignado = false;
     
@@ -128,6 +137,7 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
     }
   });
 
+  // Trueques para completar sedes incompletas usando jugadores flexibles
   ordenHojas.forEach(sedeIncompleta => {
     if (sedes[sedeIncompleta].activa) {
       let cupoTotal = reglasSedes[sedeIncompleta];
@@ -160,7 +170,7 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
                   let jugadorFlexible = sedes[sedeLlena].conv.splice(indexFlexible, 1)[0];
                   sedes[sedeIncompleta].conv.push(jugadorFlexible);
                   let suplentePromovido = sedes[sedeLlena].supl.shift()!;
-                  sedes[sedeLlena].conv.push(supolentePromovido_o_corregido => suplentePromovido); // Ajuste seguro
+                  sedes[sedeLlena].conv.push(suplentePromovido);
                   truequeRealizado = true;
                   break;
                 }
@@ -173,6 +183,7 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
     }
   });
 
+  // Reordenamiento final por prioridad (los que deben pago siempre abajo)
   const comparadorPrioridad = (a: PlayerProcessed, b: PlayerProcessed) => {
     if (a.pagoAlDia !== b.pagoAlDia) return a.pagoAlDia ? -1 : 1;
     if (a.esVip !== b.esVip) return a.esVip ? -1 : 1;
