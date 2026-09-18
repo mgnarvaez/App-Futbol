@@ -117,45 +117,45 @@ function RootShell({ children }: { children: ReactNode }) {
 function Navbar() {
   return (
     <header className="border-b bg-white sticky top-0 z-50 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-        <div className="font-bold text-lg text-gray-800 flex items-center gap-2">
-          ⚽ Fútbol Manager
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 h-16 flex items-center justify-between gap-1">
+        <div className="font-bold text-base sm:text-lg text-gray-800 flex items-center gap-1 shrink-0">
+          ⚽ <span className="hidden xs:inline">Fútbol Manager</span>
         </div>
-        <nav className="flex items-center gap-1 sm:gap-2 text-sm font-medium">
+        <nav className="flex items-center gap-0.5 sm:gap-1 text-xs sm:text-sm font-medium overflow-x-auto py-2">
           <Link
             to="/"
-            className="px-3 py-2 rounded-md hover:bg-gray-100 transition-colors text-gray-700"
+            className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-md hover:bg-gray-100 transition-colors text-gray-700 whitespace-nowrap"
             activeProps={{ className: "bg-gray-100 text-black font-semibold" }}
           >
             Panel
           </Link>
           <Link
             to="/armado"
-            className="px-3 py-2 rounded-md hover:bg-gray-100 transition-colors text-gray-700"
+            className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-md hover:bg-gray-100 transition-colors text-gray-700 whitespace-nowrap"
             activeProps={{ className: "bg-gray-100 text-black font-semibold" }}
           >
             Armado
           </Link>
           <Link
             to="/equipos"
-            className="px-3 py-2 rounded-md hover:bg-gray-100 transition-colors text-gray-700"
+            className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-md hover:bg-gray-100 transition-colors text-gray-700 whitespace-nowrap"
             activeProps={{ className: "bg-gray-100 text-black font-semibold" }}
           >
             Equipos
           </Link>
           <Link
             to="/plantel"
-            className="px-3 py-2 rounded-md hover:bg-gray-100 transition-colors text-gray-700"
+            className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-md hover:bg-gray-100 transition-colors text-gray-700 whitespace-nowrap"
             activeProps={{ className: "bg-gray-100 text-black font-semibold" }}
           >
             Plantel
           </Link>
           <Link
             to="/motor"
-            className="px-3 py-2 rounded-md bg-green-50 text-green-700 hover:bg-green-100 transition-colors border border-green-200 ml-2"
+            className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-md bg-green-50 text-green-700 hover:bg-green-100 transition-colors border border-green-200 ml-1 whitespace-nowrap"
             activeProps={{ className: "bg-green-600 text-white font-semibold hover:bg-green-700" }}
           >
-            🤖 Motor Nativo
+            🤖 <span className="hidden sm:inline">Motor Nativo</span><span className="sm:hidden">Motor</span>
           </Link>
         </nav>
       </div>
