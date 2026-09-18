@@ -157,7 +157,7 @@ function MotorNativoPage() {
             {/* --- SAN MATIAS (SM) --- */}
             <div className="space-y-4">
               <div className="bg-primary/10 p-3 rounded-lg border border-border text-center">
-                <h3 className="font-bold text-primary">SAN MARTÍN (20:00 hs)</h3>
+                <h3 className="font-bold text-primary">SAN MATIAS (20:00 hs)</h3>
               </div>
 
               <div className="border border-border bg-card p-4 rounded-xl shadow-sm space-y-2">
@@ -189,7 +189,7 @@ function MotorNativoPage() {
                       </li>
                     ))
                   ) : (
-                    <p className="text-xs text-muted-foreground italic">No se encontró solapa de San Martín</p>
+                    <p className="text-xs text-muted-foreground italic">No se encontró solapa de San MATIAS</p>
                   )}
                 </ul>
               </div>
