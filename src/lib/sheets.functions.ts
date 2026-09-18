@@ -215,6 +215,10 @@ export async function leerEquiposArmados(): Promise<EquipoSede[]> {
   return [];
 }
 
+export async function obtenerEquiposArmadosSheet(): Promise<EquipoSede[]> {
+  return leerEquiposArmados();
+}
+
 export async function ejecutarArmadoEquipos(params?: { 
   suspensionLluvia?: string; 
   suspensionOtra?: string 
@@ -241,4 +245,11 @@ export async function ejecutarArmadoEquipos(params?: {
     console.error("Error al ejecutar armado de equipos:", error);
     return { ok: false, mensaje: "Error de conexión con el script de Google." };
   }
+}
+
+export async function correrArmadoEquipos(params?: { 
+  suspensionLluvia?: string; 
+  suspensionOtra?: string 
+}): Promise<{ ok: boolean; mensaje: string }> {
+  return ejecutarArmadoEquipos(params);
 }
