@@ -262,3 +262,32 @@ export async function correrArmadoEquipos(params?: {
 }): Promise<{ ok: boolean; mensaje: string }> {
   return ejecutarArmadoEquipos(params);
 }
+
+export async function registrarBajaSheet(
+  apodo: string,
+  motivo: string = "Baja desde App Web"
+): Promise<{ ok: boolean; mensaje: string }> {
+  try {
+    const baseUrl = APPS_SCRIPT_INSCRIPTOS_URL.replace("?action=read_solapas", "");
+    const res = await fetch(baseUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      body: JSON.stringify({
+        action: "registrar_baja",
+        params: { apodo, motivo },
+      }),
+    });
+
+    const data = await res.json();
+    if (data.success || data.status === "success") {
+      return { ok: true, mensaje: `Baja de ${apodo} registrada con éxito en la planilla.` };
+    } else {
+      return { ok: false, mensaje: data.error || data.message || "Error al registrar la baja en la planilla." };
+    }
+  } catch (error) {
+    console.error("Error al registrar baja:", error);
+    return { ok: false, mensaje: "Error de conexión al intentar registrar la baja." };
+  }
+}
