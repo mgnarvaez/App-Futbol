@@ -2,9 +2,12 @@ import type { Sede } from "@/lib/types";
 
 export const APPS_SCRIPT_INSCRIPTOS_URL = "https://script.google.com/macros/s/AKfycbxrnsy5Nnc3NhuaiMDQttchV96qtNqVuS8DVP8gZePhdt8FJ0V5AD9aAO-MSVIPkGVT/exec?action=read_solapas";
 export const APPS_SCRIPT_PLANTEL_URL = "https://script.google.com/macros/s/AKfycbwTwlu5T0iMo9JvMMfT9cXZFCq4wnUzhUlHDr-_48UKtU-P8Ap3NpMovNs_pQI_eexxZw/exec";
+export const APPS_SCRIPT_ARMADO_URL = "https://script.google.com/macros/s/AKfycbyS0-0mcap121rUXakFIa1vqmeL2MfHPefWV6KRwxRLfz_YGuDqFjwv9IZD7zJUVNoM/exec";
 
 export const SHEET_INSCRIPTOS_ID = "1b_JOQKHe6mz_9aVka90hKhEM3Gqaw9U6dR6iK_80TkU";
 export const SHEET_PLANTEL_ID = "13_t_cbzP3F7Pbt1Apzto8i7WB2-QCLICP7D5fIUHaf0";
+export const SHEET_EQUIPOS_ID = "1vAkjAgb7A7glehP2N2IUhph4ILCHEtELdv9_Ckic8to";
+
 export const TAB_VIP = "Ingresos VIP";
 export const TAB_GENERAL = "Ingresos General";
 export const TAB_PLANTEL = "Respuestas de formulario 1";
@@ -35,6 +38,19 @@ export interface JugadorPlantelSheet {
   lote: string;
   puesto: string;
   pago: boolean;
+}
+
+export interface JugadorEquipo {
+  nombre: string;
+  puesto: string;
+}
+
+export interface EquipoSede {
+  sede: Sede;
+  puntajeBlancos: string;
+  puntajeNegros: string;
+  blancos: JugadorEquipo[];
+  negros: JugadorEquipo[];
 }
 
 const texto = (row: any, i: number) => (row?.[i] ?? "").toString().trim();
@@ -196,23 +212,16 @@ export async function obtenerPlantelSheet(): Promise<JugadorPlantelSheet[]> {
   return leerPlantel();
 }
 
-export const SHEET_EQUIPOS_ID = "1vAkjAgb7A7glehP2N2IUhph4ILCHEtELdv9_Ckic8to";
-
-export interface JugadorEquipo {
-  nombre: string;
-  puesto: string;
-}
-
-export interface EquipoSede {
-  sede: Sede;
-  puntajeBlancos: string;
-  puntajeNegros: string;
-  blancos: JugadorEquipo[];
-  negros: JugadorEquipo[];
-}
-
 export async function leerEquiposArmados(): Promise<EquipoSede[]> {
-  return [];
+  try {
+    const res = await fetch(`${APPS_SCRIPT_ARMADO_URL}?action=read_equipos`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data?.equipos || [];
+  } catch (error) {
+    console.error("Error al leer equipos armados:", error);
+    return [];
+  }
 }
 
 export async function obtenerEquiposArmadosSheet(): Promise<EquipoSede[]> {
@@ -224,26 +233,26 @@ export async function ejecutarArmadoEquipos(params?: {
   suspensionOtra?: string 
 }): Promise<{ ok: boolean; mensaje: string }> {
   try {
-    const res = await fetch(APPS_SCRIPT_INSCRIPTOS_URL.replace("?action=read_solapas", ""), {
+    const res = await fetch(APPS_SCRIPT_ARMADO_URL, {
       method: "POST",
       headers: {
         "Content-Type": "text/plain;charset=utf-8",
       },
       body: JSON.stringify({
-        action: "select_players",
+        action: "balance_teams",
         params: params || {}
       }),
     });
 
     const data = await res.json();
-    if (data.success) {
-      return { ok: true, mensaje: "¡Convocados rearmados con éxito desde la planilla!" };
+    if (data.status === "success" || data.success) {
+      return { ok: true, mensaje: "¡Equipos armados con éxito en la planilla!" };
     } else {
-      return { ok: false, mensaje: data.error || "Error al ejecutar en el script de Google." };
+      return { ok: false, mensaje: data.message || "Error al ejecutar el armado." };
     }
   } catch (error) {
     console.error("Error al ejecutar armado de equipos:", error);
-    return { ok: false, mensaje: "Error de conexión con el script de Google." };
+    return { ok: false, mensaje: "Error de conexión con la planilla de armado." };
   }
 }
 
