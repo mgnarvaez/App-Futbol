@@ -15,10 +15,8 @@ function MotorNativoPage() {
   const ejecutarMotorLocal = async () => {
     setLoading(true);
     try {
-      // 1. Leemos los inscriptos crudos de las solapas de la Sheet
       const inscriptos = await leerInscriptos();
 
-      // 2. Configuración inicial por defecto del motor
       const config: EngineConfig = {
         suspensionLluvia: "SOL",
         suspensionOtra1: "NINGUNA",
@@ -28,7 +26,6 @@ function MotorNativoPage() {
         pagosManuales: {},
       };
 
-      // 3. Corremos el motor nativamente en el navegador
       const sedesNativas = correrMotorConvocados(inscriptos, config);
 
       setResultado(sedesNativas);
@@ -42,16 +39,17 @@ function MotorNativoPage() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6 pb-20">
+      {/* Encabezado adaptable a celulares (pila vertical en móviles, fila en PC) */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold">🤖 Motor Nativo de Convocados</h1>
-          <p className="text-gray-600">Calcula los equipos localmente en la app usando las reglas de tu planilla sin tocar Google Apps Script.</p>
+          <h1 className="text-xl sm:text-2xl font-bold">🤖 Motor Nativo de Convocados</h1>
+          <p className="text-sm text-gray-600">Calcula los equipos localmente usando las reglas de tu planilla.</p>
         </div>
         <button
           onClick={ejecutarMotorLocal}
           disabled={loading}
-          className="px-5 py-2.5 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 shadow-sm transition-colors"
+          className="w-full sm:w-auto px-5 py-2.5 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 shadow-sm transition-colors text-center"
         >
           {loading ? "Calculando..." : "🚀 Correr Motor Local"}
         </button>
@@ -60,19 +58,19 @@ function MotorNativoPage() {
       {reporte.length > 0 && (
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
           {reporte.map((r, i) => (
-            <p key={i} className="text-blue-900 font-medium">{r}</p>
+            <p key={i} className="text-blue-900 font-medium text-sm sm:text-base">{r}</p>
           ))}
         </div>
       )}
 
       {resultado && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mt-6">
           {Object.keys(resultado).map((sedeKey) => {
             const sede = resultado[sedeKey];
             return (
-              <div key={sedeKey} className="border border-gray-200 bg-white p-5 rounded-xl shadow-sm space-y-4">
+              <div key={sedeKey} className="border border-gray-200 bg-white p-4 sm:p-5 rounded-xl shadow-sm space-y-4">
                 <div className="flex justify-between items-center border-b pb-2">
-                  <h3 className="font-bold text-lg text-gray-800">{sedeKey}</h3>
+                  <h3 className="font-bold text-base sm:text-lg text-gray-800">{sedeKey}</h3>
                   <span className={`text-xs px-2 py-1 rounded-full font-semibold ${sede.activa ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                     {sede.activa ? "Activa" : "Suspendida"}
                   </span>
@@ -86,8 +84,8 @@ function MotorNativoPage() {
                     <ul className="text-sm space-y-1 pl-2">
                       {sede.conv.map((j: any, idx: number) => (
                         <li key={idx} className="flex justify-between items-center py-1 border-b border-gray-50">
-                          <span>{idx + 1}. {j.nombre}</span>
-                          <div className="flex gap-1">
+                          <span className="truncate pr-2">{idx + 1}. {j.nombre}</span>
+                          <div className="flex gap-1 shrink-0">
                             {j.esVip && <span title="VIP">⭐</span>}
                             {j.flex && <span title="Flexible">🔄</span>}
                           </div>
@@ -102,7 +100,7 @@ function MotorNativoPage() {
                     <h4 className="font-semibold text-sm text-amber-700 mb-1">Suplentes ({sede.supl.length}):</h4>
                     <ul className="text-sm space-y-1 pl-2 text-gray-600">
                       {sede.supl.map((j: any, idx: number) => (
-                        <li key={idx}>
+                        <li key={idx} className="truncate">
                           {idx + 1}. {j.nombre}
                         </li>
                       ))}
