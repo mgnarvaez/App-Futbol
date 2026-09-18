@@ -69,7 +69,7 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
   const bajasSet = new Set(config.bajasManuales.map(b => b.toLowerCase().trim()));
   jugadores = jugadores.filter(j => !bajasSet.has(j.nombre.toLowerCase().trim()));
 
-  // 3. Inicialización estricta de estados de las sedes (Activas o Canceladas)
+  // 3. Inicialización estricta de estados de las sedes (Activas o Canceladas por Panel / Lluvia)
   const sedes: Record<string, { activa: boolean; motivo: string; conv: PlayerProcessed[]; supl: PlayerProcessed[] }> = {};
   
   const hayLluvia = config.suspensionLluvia !== "SOL";
@@ -80,14 +80,17 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
   ordenHojas.forEach(n => {
     sedes[n] = { activa: true, motivo: "", conv: [], supl: [] };
     
+    // Verificamos lluvia
     if (hayLluvia && n.toUpperCase().includes(config.suspensionLluvia.toUpperCase())) {
       sedes[n].activa = false;
       sedes[n].motivo = "CANCELADA POR LLUVIA";
     }
+    // Verificamos suspensión panel opción 1
     if (config.suspensionOtra1 !== "NINGUNA" && n.toUpperCase().includes(config.suspensionOtra1.toUpperCase())) {
       sedes[n].activa = false;
       sedes[n].motivo = "SEDE CANCELADA";
     }
+    // Verificamos suspensión panel opción 2
     if (config.suspensionOtra2 !== "NINGUNA" && n.toUpperCase().includes(config.suspensionOtra2.toUpperCase())) {
       sedes[n].activa = false;
       sedes[n].motivo = "SEDE CANCELADA";
@@ -96,17 +99,18 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
 
   // 4. Orden de prioridad estricta: Pagos -> VIP -> Cronológico
   jugadores.sort((a, b) => {
-    if (a.pagoAlDia !== b.pagoAlDia) return a.pagoAlDia ? -1 : 1;
-    if (a.esVip !== b.esVip) return a.esVip ? -1 : 1;
-    if (a.timestamp === b.timestamp) return a.indice - b.indice;
+    if (a.pagoAlDia !== b.pagoAlDia) return a.pagoAlDia ? -1 : 1; // Pagados primero, deudores al final
+    if (a.esVip !== b.esVip) return a.esVip ? -1 : 1;             // VIPs antes que generales
+    if (a.timestamp === b.timestamp) return a.indice - b.indice; // Orden de inscripción
     return a.timestamp - b.timestamp;
   });
 
-  // 5. Asignación inicial respetando preferencias y BLOQUEANDO sedes inactivas
+  // 5. Asignación directa respetando preferencias y BLOQUEANDO sedes inactivas
   jugadores.forEach(jug => {
     let asignado = false;
     const sedePreferidaActiva = sedes[jug.pref] && sedes[jug.pref].activa;
     
+    // Intenta entrar a su preferencia SOLO SI LA SEDE ESTÁ ACTIVA y hay cupo
     if (sedePreferidaActiva && sedes[jug.pref].conv.length < reglasSedes[jug.pref]) {
       sedes[jug.pref].conv.push(jug);
       asignado = true;
@@ -116,6 +120,7 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
     if (!asignado && jug.flex) {
       for (let i = 0; i < ordenHojas.length; i++) {
         let otraSede = ordenHojas[i];
+        // Buscamos espacio exclusivamente en sedes que estén estrictamente activas
         if (sedes[otraSede] && sedes[otraSede].activa && sedes[otraSede].conv.length < reglasSedes[otraSede]) {
           sedes[otraSede].conv.push(jug);
           asignado = true;
@@ -124,73 +129,23 @@ export function correrMotorConvocados(inscriptosCrudos: InscriptoSheet[], config
       }
     }
     
+    // Si no logró entrar como titular en ninguna parte, va a suplentes
     if (!asignado) {
       if (sedePreferidaActiva) {
         sedes[jug.pref].supl.push(jug);
       } else {
-        // Si su sede preferida estaba inactiva (como SM), NUNCA va ahí. Va a la primera sede activa disponible.
+        // Si su sede preferida estaba inactiva, va a la primera sede activa disponible como suplente
         let primeraActiva = ordenHojas.find(n => sedes[n].activa);
         if (primeraActiva) {
           sedes[primeraActiva].supl.push(jug);
+        } else if (sedes[jug.pref]) {
+          sedes[jug.pref].supl.push(jug);
         }
       }
     }
   });
 
-  // 6. BALANCEO ESTRICTO: Solo rellenar sedes que estén ACTIVA y les falte gente, 
-  // moviendo jugadores flexibles de otras sedes ACTIVAS (jamás tocando las canceladas).
-  ordenHojas.forEach(sedeIncompleta => {
-    // REGLA CRUCIAL: La sede incompleta DEBE estar activa para poder recibir refuerzos
-    if (sedes[sedeIncompleta].activa) {
-      let cupoTotal = reglasSedes[sedeIncompleta];
-
-      while (sedes[sedeIncompleta].conv.length < cupoTotal) {
-        let movimientoRealizado = false;
-
-        // A. Si hay suplentes esperando en esta misma sede activa, suben directo
-        if (sedes[sedeIncompleta].supl.length > 0) {
-          let promovido = sedes[sedeIncompleta].supl.shift()!;
-          sedes[sedeIncompleta].conv.push(promovido);
-          movimientoRealizado = true;
-          continue;
-        }
-
-        // B. Si no hay suplentes, buscamos jugadores flexibles en otras sedes ACTIVAS para hacer trueque
-        for (let i = 0; i < ordenHojas.length; i++) {
-          let sedeLlena = ordenHojas[i];
-          // Validamos estrictamente que la sede fuente también esté activa
-          if (sedeLlena !== sedeIncompleta && sedes[sedeLlena].activa && sedes[sedeLlena].conv.length > 0) {
-            
-            // Buscamos de atrás hacia adelante al jugador flexible (los deudores flexibles se mueven primero)
-            let indexFlexible = -1;
-            for (let j = sedes[sedeLlena].conv.length - 1; j >= 0; j--) {
-              if (sedes[sedeLlena].conv[j].flex) {
-                indexFlexible = j;
-                break;
-              }
-            }
-
-            if (indexFlexible !== -1) {
-              let jugadorFlexible = sedes[sedeLlena].conv.splice(indexFlexible, 1)[0];
-              sedes[sedeIncompleta].conv.push(jugadorFlexible);
-
-              if (sedes[sedeLlena].supl.length > 0) {
-                let suplentePromovido = sedes[sedeLlena].supl.shift()!;
-                sedes[sedeLlena].conv.push(suplentePromovido);
-              }
-
-              movimientoRealizado = true;
-              break;
-            }
-          }
-        }
-
-        if (!movimientoRealizado) break; 
-      }
-    }
-  });
-
-  // 7. Reordenamiento final por prioridad estricta en cada lista
+  // 6. Reordenamiento final por prioridad estricta en cada lista para prolijidad visual
   const comparadorPrioridad = (a: PlayerProcessed, b: PlayerProcessed) => {
     if (a.pagoAlDia !== b.pagoAlDia) return a.pagoAlDia ? -1 : 1;
     if (a.esVip !== b.esVip) return a.esVip ? -1 : 1;
