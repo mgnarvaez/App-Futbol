@@ -10,7 +10,8 @@ export const Route = createFileRoute('/motor')({
 function MotorNativoPage() {
   const [loading, setLoading] = useState(false);
   const [resultadoMotor, setResultadoMotor] = useState<any>(null);
-  const [datosSolapasScript, setDatosSolapasScript] = useState<any>(null);
+  const [datosSolapasScript, setDatosSolapasScript] = useState<any>(any => null);
+  const [clavesDisponibles, setClavesDisponibles] = useState<string[]>([]);
   const [reporte, setReporte] = useState<string[]>([]);
 
   const ejecutarComparativa = async () => {
@@ -19,7 +20,10 @@ function MotorNativoPage() {
       const res = await fetch(APPS_SCRIPT_INSCRIPTOS_URL);
       const dataRaw = await res.json();
       const solapas = dataRaw?.solapas || dataRaw || {};
+      
       setDatosSolapasScript(solapas);
+      setClavesDisponibles(Object.keys(solapas));
+      console.log("CLAVES RECIBIDAS DE GOOGLE SHEETS:", Object.keys(solapas));
 
       const inscriptos = await obtenerInscriptosSheet();
       const config: EngineConfig = {
@@ -34,47 +38,42 @@ function MotorNativoPage() {
       const sedesNativas = correrMotorConvocados(inscriptos, config);
       setResultadoMotor(sedesNativas);
 
-      setReporte([`✅ ¡Comparativa generada con éxito!`]);
+      setReporte([`✅ ¡Datos sincronizados! Revisa abajo las solapas detectadas.`]);
     } catch (error) {
       console.error(error);
-      setReporte(["❌ Ocurrió un error al conectar con las solapas de la Sheet."]);
+      setReporte(["❌ Ocurrió un error al conectar con Google Sheets."]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Función robusta para extraer los jugadores de la solapa sin importar cómo los devuelva el Apps Script
-  const obtenerJugadoresDeSolapa = (nombreSolapa: string) => {
+  const obtenerJugadoresDeSolapa = (criterio: string) => {
     if (!datosSolapasScript) return [];
 
-    // Buscamos la solapa probando varias combinaciones de nombres de clave
-    const solapa = 
-      datosSolapasScript[nombreSolapa] || 
-      datosSolapasScript[nombreSolapa.toLowerCase()] || 
-      datosSolapasScript[nombreSolapa.replace(/\s+/g, "_")] ||
-      Object.keys(datosSolapasScript).find(k => k.toLowerCase().includes(nombreSolapa.toLowerCase())) ? 
-      datosSolapasScript[Object.keys(datosSolapasScript).find(k => k.toLowerCase().includes(nombreSolapa.toLowerCase()))!] : null;
+    // Buscamos la clave que coincida de forma parcial (ej: "cantón", "sm", "puertos")
+    const claveEncontrada = Object.keys(datosSolapasScript).find(k => 
+      k.toLowerCase().includes(criterio.toLowerCase())
+    );
 
-    if (!solapa) return [];
+    if (!claveEncontrada) return [];
 
-    // Si es un arreglo directo de filas o jugadores
+    const solapa = datosSolapasScript[claveEncontrada];
     const lista = solapa.players || solapa.convocados || solapa.values || (Array.isArray(solapa) ? solapa : []);
-    
+
     return lista.map((item: any) => {
       if (typeof item === 'string') return { nombre: item };
       return {
-        nombre: item.nombre || item.apodo || item.rawNombre || item[0] || item.email || "Jugador sin nombre"
+        nombre: item.nombre || item.apodo || item.rawNombre || item[0] || item.email || "Sin nombre"
       };
-    }).filter((j: any) => j.nombre && j.nombre !== "Jugador sin nombre");
+    }).filter((j: any) => j.nombre && j.nombre !== "Sin nombre");
   };
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6 pb-20 text-foreground">
-      {/* Encabezado */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">🤖 Comparativa: Motor Local vs Script de Google</h1>
-          <p className="text-sm text-muted-foreground">Contrasta los equipos calculados en la app frente a las solapas oficiales de turnos.</p>
+          <p className="text-sm text-muted-foreground">Contrasta los equipos de la app frente a las solapas de la planilla.</p>
         </div>
         <button
           onClick={ejecutarComparativa}
@@ -86,14 +85,18 @@ function MotorNativoPage() {
       </div>
 
       {reporte.length > 0 && (
-        <div className="p-4 bg-muted/60 border border-border rounded-lg">
+        <div className="p-4 bg-muted/60 border border-border rounded-lg space-y-2">
           {reporte.map((r, i) => (
             <p key={i} className="text-foreground font-medium text-sm sm:text-base">{r}</p>
           ))}
+          {clavesDisponibles.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              <strong>Solapas detectadas en el JSON:</strong> {clavesDisponibles.join(", ")}
+            </p>
+          )}
         </div>
       )}
 
-      {/* BLOQUE DE COMPARATIVA POR SEDE Y TURNO */}
       {resultadoMotor && datosSolapasScript && (
         <div className="space-y-6">
           <h2 className="text-lg font-bold border-b border-border pb-2">
@@ -108,7 +111,6 @@ function MotorNativoPage() {
                 <h3 className="font-bold text-primary">CANTON (20 hs)</h3>
               </div>
 
-              {/* Lado Motor Local */}
               <div className="border border-border bg-card p-4 rounded-xl shadow-sm space-y-2">
                 <span className="text-xs font-semibold uppercase text-muted-foreground">🤖 Motor Local (App)</span>
                 <ul className="text-sm space-y-1">
@@ -125,18 +127,17 @@ function MotorNativoPage() {
                 </ul>
               </div>
 
-              {/* Lado Script Google */}
               <div className="border border-border bg-card/60 p-4 rounded-xl shadow-sm space-y-2">
-                <span className="text-xs font-semibold uppercase text-muted-foreground">📊 Solapa Script ("20 hs CANTON")</span>
+                <span className="text-xs font-semibold uppercase text-muted-foreground">📊 Solapa Script ("CANTON")</span>
                 <ul className="text-sm space-y-1">
-                  {obtenerJugadoresDeSolapa("20 hs CANTON").length > 0 ? (
-                    obtenerJugadoresDeSolapa("20 hs CANTON").map((j: any, i: number) => (
+                  {obtenerJugadoresDeSolapa("canton").length > 0 ? (
+                    obtenerJugadoresDeSolapa("canton").map((j: any, i: number) => (
                       <li key={i} className="py-1 border-b border-border/50 flex justify-between">
                         <span>{i + 1}. {j.nombre}</span>
                       </li>
                     ))
                   ) : (
-                    <p className="text-xs text-muted-foreground italic">No se encontraron datos en la solapa</p>
+                    <p className="text-xs text-muted-foreground italic">No se encontró solapa de Canton</p>
                   )}
                 </ul>
               </div>
@@ -165,16 +166,16 @@ function MotorNativoPage() {
               </div>
 
               <div className="border border-border bg-card/60 p-4 rounded-xl shadow-sm space-y-2">
-                <span className="text-xs font-semibold uppercase text-muted-foreground">📊 Solapa Script ("20:00 hs SM")</span>
+                <span className="text-xs font-semibold uppercase text-muted-foreground">📊 Solapa Script ("SM")</span>
                 <ul className="text-sm space-y-1">
-                  {obtenerJugadoresDeSolapa("20:00 hs SM").length > 0 ? (
-                    obtenerJugadoresDeSolapa("20:00 hs SM").map((j: any, i: number) => (
+                  {obtenerJugadoresDeSolapa("sm").length > 0 ? (
+                    obtenerJugadoresDeSolapa("sm").map((j: any, i: number) => (
                       <li key={i} className="py-1 border-b border-border/50 flex justify-between">
                         <span>{i + 1}. {j.nombre}</span>
                       </li>
                     ))
                   ) : (
-                    <p className="text-xs text-muted-foreground italic">No se encontraron datos en la solapa</p>
+                    <p className="text-xs text-muted-foreground italic">No se encontró solapa de San Martín</p>
                   )}
                 </ul>
               </div>
@@ -203,16 +204,16 @@ function MotorNativoPage() {
               </div>
 
               <div className="border border-border bg-card/60 p-4 rounded-xl shadow-sm space-y-2">
-                <span className="text-xs font-semibold uppercase text-muted-foreground">📊 Solapa Script ("21:15 hs PUERTOS")</span>
+                <span className="text-xs font-semibold uppercase text-muted-foreground">📊 Solapa Script ("PUERTOS")</span>
                 <ul className="text-sm space-y-1">
-                  {obtenerJugadoresDeSolapa("21:15 hs PUERTOS").length > 0 ? (
-                    obtenerJugadoresDeSolapa("21:15 hs PUERTOS").map((j: any, i: number) => (
+                  {obtenerJugadoresDeSolapa("puertos").length > 0 ? (
+                    obtenerJugadoresDeSolapa("puertos").map((j: any, i: number) => (
                       <li key={i} className="py-1 border-b border-border/50 flex justify-between">
                         <span>{i + 1}. {j.nombre}</span>
                       </li>
                     ))
                   ) : (
-                    <p className="text-xs text-muted-foreground italic">No se encontraron datos en la solapa</p>
+                    <p className="text-xs text-muted-foreground italic">No se encontró solapa de Puertos</p>
                   )}
                 </ul>
               </div>
