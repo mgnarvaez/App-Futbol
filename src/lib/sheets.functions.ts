@@ -72,13 +72,18 @@ export async function leerInscriptos(): Promise<InscriptoSheet[]> {
     const filas: InscriptoSheet[] = [];
 
     const solapas = data?.solapas || {};
+    const bajasSet = new Set<string>(
+      (solapas.bajas || []).map((b: string) => b.toLowerCase().trim())
+    );
 
     // 1. Inscriptos VIP
     const vipPlayers = solapas.respuestas_vip?.players || solapas["Ingresos VIP"]?.players || [];
     for (const p of vipPlayers) {
       const email = (p.email || "").toString().toLowerCase().trim();
       const apodo = (p.apodo || p.rawNombre || "").toString().trim();
-      if (apodo || email) {
+      
+      // Se descarta si el apodo figura en el listado de bajas
+      if ((apodo || email) && !bajasSet.has(apodo.toLowerCase())) {
         const rawTs = (p.rawTimestamp || "").toString();
         const [f = "", h = ""] = rawTs.split(" ");
         const pref = (p.rawPref || p.turno || "").toString().trim();
@@ -103,7 +108,9 @@ export async function leerInscriptos(): Promise<InscriptoSheet[]> {
     for (const p of genPlayers) {
       const email = (p.email || "").toString().toLowerCase().trim();
       const apodo = (p.apodo || p.rawNombre || "").toString().trim();
-      if (apodo || email) {
+
+      // Se descarta si el apodo figura en el listado de bajas
+      if ((apodo || email) && !bajasSet.has(apodo.toLowerCase())) {
         const rawTs = (p.rawTimestamp || "").toString();
         const [f = "", h = ""] = rawTs.split(" ");
         const pref = (p.rawPref || p.turno || "").toString().trim();
