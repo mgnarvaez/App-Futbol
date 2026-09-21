@@ -1,8 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { APPS_SCRIPT_INSCRIPTOS_URL, obtenerInscriptosSheet, obtenerPlantelSheet } from "@/lib/sheets.functions";
-import { correrMotorConvocados, type EngineConfig } from '@/lib/squadEngine';
-
+import { correrMotorConvocados, type EngineConfig } from '@/squadEngine';
 export const Route = createFileRoute('/motor')({
   component: MotorNativoPage,
 });
