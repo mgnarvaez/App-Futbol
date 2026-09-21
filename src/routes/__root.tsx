@@ -134,14 +134,14 @@ function Navbar() {
             className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-md hover:bg-gray-100 transition-colors text-gray-700 whitespace-nowrap"
             activeProps={{ className: "bg-gray-100 text-black font-semibold" }}
           >
-            Armado
+            Equipos
           </Link>
           <Link
             to="/equipos"
             className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-md hover:bg-gray-100 transition-colors text-gray-700 whitespace-nowrap"
             activeProps={{ className: "bg-gray-100 text-black font-semibold" }}
           >
-            Equipos
+            Convocados
           </Link>
           <Link
             to="/plantel"
