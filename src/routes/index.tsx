@@ -157,7 +157,7 @@ function Panel() {
       toast.error(
         error instanceof Error ? error.message : "Error al sincronizar inscriptos",
       );
-    } finally {
+    } fontally {
       setSincronizando(false);
     }
   };
@@ -203,10 +203,7 @@ function Panel() {
 
     setBajando(inscripcion.id);
     try {
-      // 1. Dar de baja en el backend local/Supabase
       await convocatoriaService.darDeBaja(inscripcion);
-
-      // 2. Registrar baja en la Sheet (activa F2 en TRUE y escribe en Col E y F a partir de fila 4)
       const resSheet = await registrarBajaSheet(apodo, "Baja registrada desde App Web");
       if (resSheet.ok) {
         toast.success(`Baja de ${apodo} registrada en la planilla.`);
