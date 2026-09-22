@@ -64,7 +64,7 @@ function detectarSede(turno: string): Sede | null {
   return null;
 }
 
-export async function leerInscriptos(): Promise<InscriptoSheet[]> {
+export async function leerInscriptos(): Promise {
   try {
     const res = await fetch(APPS_SCRIPT_INSCRIPTOS_URL);
     if (!res.ok) return [];
@@ -72,7 +72,7 @@ export async function leerInscriptos(): Promise<InscriptoSheet[]> {
     const filas: InscriptoSheet[] = [];
 
     const solapas = data?.solapas || {};
-    const bajasSet = new Set<string>(
+    const bajasSet = new Set(
       (solapas.bajas || []).map((b: string) => b.toLowerCase().trim())
     );
 
@@ -137,7 +137,7 @@ export async function leerInscriptos(): Promise<InscriptoSheet[]> {
   }
 }
 
-export async function obtenerInscriptosSheet(): Promise<InscriptoSheet[]> {
+export async function obtenerInscriptosSheet(): Promise {
   return leerInscriptos();
 }
 
@@ -172,7 +172,7 @@ function edadActual(edadDeclarada: string, fechaInscripcion: string): string {
   return String(base + Math.max(0, anios));
 }
 
-export async function leerPlantel(): Promise<JugadorPlantelSheet[]> {
+export async function leerPlantel(): Promise {
   try {
     const res = await fetch(APPS_SCRIPT_PLANTEL_URL);
     if (!res.ok) return [];
@@ -215,11 +215,11 @@ export async function leerPlantel(): Promise<JugadorPlantelSheet[]> {
   }
 }
 
-export async function obtenerPlantelSheet(): Promise<JugadorPlantelSheet[]> {
+export async function obtenerPlantelSheet(): Promise {
   return leerPlantel();
 }
 
-export async function leerEquiposArmados(): Promise<EquipoSede[]> {
+export async function leerEquiposArmados(): Promise {
   try {
     const res = await fetch(`${APPS_SCRIPT_ARMADO_URL}?action=read_equipos`);
     if (!res.ok) return [];
@@ -231,7 +231,7 @@ export async function leerEquiposArmados(): Promise<EquipoSede[]> {
   }
 }
 
-export async function obtenerEquiposArmadosSheet(): Promise<EquipoSede[]> {
+export async function obtenerEquiposArmadosSheet(): Promise {
   return leerEquiposArmados();
 }
 
@@ -296,5 +296,30 @@ export async function registrarBajaSheet(
   } catch (error) {
     console.error("Error al registrar baja:", error);
     return { ok: false, mensaje: "Error de conexión al intentar registrar la baja." };
+  }
+}
+
+export async function ejecutarOrganizarConvocadosSheet(): Promise<{ ok: boolean; mensaje: string }> {
+  try {
+    const baseUrl = APPS_SCRIPT_INSCRIPTOS_URL.replace("?action=read_solapas", "");
+    const res = await fetch(baseUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      body: JSON.stringify({
+        action: "ejecutar_organizar",
+      }),
+    });
+
+    const data = await res.json();
+    if (data.success || data.status === "success") {
+      return { ok: true, mensaje: "¡Convocatorias reorganizadas en la planilla de Google!" };
+    } else {
+      return { ok: false, mensaje: data.error || data.message || "Error al organizar convocados." };
+    }
+  } catch (error) {
+    console.error("Error al ejecutar organizar convocados:", error);
+    return { ok: false, mensaje: "Error de conexión con la planilla." };
   }
 }
