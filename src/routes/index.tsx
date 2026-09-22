@@ -17,6 +17,7 @@ import {
   sincronizacionService,
 } from "@/lib/services/sincronizacionService";
 import {
+  ejecutarOrganizarConvocadosSheet,
   obtenerInscriptosSheet,
   obtenerPlantelSheet,
   registrarBajaSheet,
@@ -65,8 +66,9 @@ function Panel() {
   } = useAppStore();
 
   const [armando, setArmando] = useState(false);
-  const [bajando, setBajando] = useState<string | null>(null);
+  const [bajando, setBajando] = useState(null);
   const [sincronizando, setSincronizando] = useState(false);
+  const [convocandoSheet, setConvocandoSheet] = useState(false);
   const preparando = useRef(false);
 
   const { data: inscriptosSheet, refetch: refetchSheet } = useQuery({
@@ -147,7 +149,7 @@ function Panel() {
       const plantel = await obtenerPlantelSheet();
       const pagos = await sincronizacionService.sincronizarPagos(plantel);
       toast.success(
-        `${resultado.nuevos} inscripto(s) nuevo(s) de ${resultado.total} en la planilla · ${pagos.deben} sin pagar`,
+        `\({resultado.nuevos} inscripto(s) nuevo(s) de\){resultado.total} en la planilla · ${pagos.deben} sin pagar`,
       );
       await cargarConvocatoriaDelDia();
       await cargarJugadores();
@@ -157,6 +159,25 @@ function Panel() {
       );
     } finally {
       setSincronizando(false);
+    }
+  };
+
+  const convocarSheet = async () => {
+    setConvocandoSheet(true);
+    try {
+      const res = await ejecutarOrganizarConvocadosSheet();
+      if (res.ok) {
+        toast.success(res.mensaje);
+        await refetchSheet();
+      } else {
+        toast.error(res.mensaje);
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Error al convocar en la planilla",
+      );
+    } finally {
+      setConvocandoSheet(false);
     }
   };
 
@@ -203,215 +224,15 @@ function Panel() {
   };
 
   return (
-    <AppShell
-      title="Panel de control"
-      description="La convocatoria del día se abre sola. La inscripción se hace por el Google Form."
-    >
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-base">Convocatoria de hoy · {hoy}</CardTitle>
+    
+      
+        
+          Convocatoria de hoy · {hoy}
           {convocatoriaActual && (
-            <Badge
-              variant={
-                convocatoriaActual.estado === "ABIERTA"
-                  ? "default"
-                  : convocatoriaActual.estado === "CANCELADA"
-                    ? "destructive"
-                    : "secondary"
-              }
-            >
+            
               {convocatoriaActual.estado}
-            </Badge>
+            
           )}
-        </CardHeader>
-        <CardContent className="space-y-4">
+        
+        
           {!convocatoriaActual ? (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Preparando la convocatoria de hoy…
-            </p>
-          ) : (
-            <>
-              <div className="flex flex-wrap gap-2">
-                <Button asChild>
-                  <a href={FORM_URL} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="mr-2 size-4" />
-                    Abrir formulario de inscripción
-                  </a>
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => void sincronizar()}
-                  disabled={sincronizando}
-                >
-                  {sincronizando ? (
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="mr-2 size-4" />
-                  )}
-                  Traer inscriptos de la planilla
-                </Button>
-                <Button variant="secondary" onClick={() => void armar()} disabled={armando}>
-                  {armando ? (
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                  ) : (
-                    <Shuffle className="mr-2 size-4" />
-                  )}
-                  Armar convocados
-                </Button>
-              </div>
-
-              <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
-                <Label htmlFor="lluvia" className="flex items-center gap-2 font-normal">
-                  <CloudRain className="size-4 text-info" />
-                  Suspensión por lluvia
-                </Label>
-                <Switch
-                  id="lluvia"
-                  checked={lluvia}
-                  onCheckedChange={(v) => void toggleLluvia(v)}
-                />
-              </div>
-
-              <div className="space-y-2 rounded-lg border border-border p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Sedes canceladas
-                </p>
-                {SEDES.map((sede) => (
-                  <div key={sede} className="flex items-center justify-between gap-4">
-                    <Label htmlFor={`sede-${sede}`} className="font-normal">
-                      {SEDE_LABELS[sede]}
-                    </Label>
-                    <Switch
-                      id={`sede-${sede}`}
-                      checked={canceladas.includes(sede)}
-                      onCheckedChange={(v) => void toggleSede(sede, v)}
-                    />
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 1. INSCRIPTOS EN PLANILLA (Formato ultracompacto 1 línea cel) */}
-      <Card>
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-base">
-            Inscriptos en la planilla ({inscriptosSheet?.length ?? 0})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-3 py-2">
-          {!inscriptosSheet ? (
-            <p className="text-sm text-muted-foreground">Leyendo la planilla…</p>
-          ) : inscriptosSheet.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No hay respuestas en el formulario.
-            </p>
-          ) : (
-            <div className="divide-y divide-border">
-              {inscriptosSheet.map((i, idx) => (
-                <div
-                  key={`${i.email}-${idx}`}
-                  className="flex items-center justify-between py-1.5 px-1 text-xs sm:text-sm whitespace-nowrap overflow-hidden"
-                >
-                  <div className="flex items-center gap-1.5 min-w-0 pr-2">
-                    <span className="font-medium text-foreground truncate max-w-[130px] sm:max-w-[200px]">
-                      {i.apodo || i.email}
-                    </span>
-                    {i.vip && (
-                      <span className="bg-amber-100 text-amber-800 text-[10px] px-1 py-0.2 rounded font-bold">
-                        VIP
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="font-semibold text-primary text-xs">
-                      {i.sede ?? (i.turno || "CANTON")}
-                    </span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                        i.flexible
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-zinc-100 text-zinc-600"
-                      }`}
-                    >
-                      {i.flexible ? "FLEX" : "FIJO"}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 2. ANOTADOS DE HOY (Formato compacto + Botón Dar Baja directo a Sheet) */}
-      <Card>
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-base">
-            Anotados de hoy ({inscripciones.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-3 py-2">
-          {inscripciones.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Todavía no sincronizaste la planilla.
-            </p>
-          ) : (
-            <div className="space-y-1">
-              {inscripciones.map((i) => (
-                <div
-                  key={i.id}
-                  className="flex items-center justify-between rounded-md bg-muted/50 px-2.5 py-1.5 text-xs sm:text-sm whitespace-nowrap"
-                >
-                  <span className="font-medium text-foreground truncate max-w-[120px] sm:max-w-[180px]">
-                    {i.jugador?.apodo || i.jugador?.nombre || "Jugador"}
-                  </span>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      size="sm"
-                      variant={
-                        i.jugador?.estado_pago === "DEBE" ? "destructive" : "outline"
-                      }
-                      className="h-6 px-1.5 text-[10px]"
-                      onClick={() =>
-                        i.jugador &&
-                        void actualizarEstadoPago(
-                          i.jugador.id,
-                          (i.jugador.estado_pago === "DEBE"
-                            ? "AL_DÍA"
-                            : "DEBE") as EstadoPago,
-                        )
-                      }
-                    >
-                      {i.jugador?.estado_pago === "DEBE" ? "Debe" : "Al día"}
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-2 text-[11px] text-destructive hover:bg-destructive/10"
-                      disabled={bajando === i.id}
-                      onClick={() => void bajar(i)}
-                    >
-                      {bajando === i.id ? (
-                        <Loader2 className="size-3 animate-spin" />
-                      ) : (
-                        <UserMinus className="size-3 mr-1" />
-                      )}
-                      Bajar
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </AppShell>
-  );
-}
