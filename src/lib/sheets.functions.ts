@@ -82,7 +82,6 @@ export async function leerInscriptos(): Promise {
       const email = (p.email || "").toString().toLowerCase().trim();
       const apodo = (p.apodo || p.rawNombre || "").toString().trim();
       
-      // Se descarta si el apodo figura en el listado de bajas
       if ((apodo || email) && !bajasSet.has(apodo.toLowerCase())) {
         const rawTs = (p.rawTimestamp || "").toString();
         const [f = "", h = ""] = rawTs.split(" ");
@@ -109,7 +108,6 @@ export async function leerInscriptos(): Promise {
       const email = (p.email || "").toString().toLowerCase().trim();
       const apodo = (p.apodo || p.rawNombre || "").toString().trim();
 
-      // Se descarta si el apodo figura en el listado de bajas
       if ((apodo || email) && !bajasSet.has(apodo.toLowerCase())) {
         const rawTs = (p.rawTimestamp || "").toString();
         const [f = "", h = ""] = rawTs.split(" ");
