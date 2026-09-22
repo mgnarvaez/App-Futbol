@@ -157,7 +157,7 @@ function Panel() {
       toast.error(
         error instanceof Error ? error.message : "Error al sincronizar inscriptos",
       );
-    } fontally {
+    } finally {
       setSincronizando(false);
     }
   };
