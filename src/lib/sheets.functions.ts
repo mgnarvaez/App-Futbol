@@ -63,6 +63,7 @@ export interface RegistroMaterialSheet {
   materiales: string;
   lote: string;
   mail: string;
+  telefono?: string;
 }
 
 export interface RankingMaterialSheet {
@@ -93,7 +94,6 @@ export async function leerInscriptos(): Promise<InscriptoSheet[]> {
       (solapas.bajas || []).map((b: string) => b.toLowerCase().trim())
     );
 
-    // 1. Inscriptos VIP (Directo de la solapa de respuestas Ingresos VIP)
     const vipPlayers = solapas.respuestas_vip?.players || solapas["Ingresos VIP"]?.players || [];
     for (const p of vipPlayers) {
       const email = (p.email || "").toString().toLowerCase().trim();
@@ -119,7 +119,6 @@ export async function leerInscriptos(): Promise<InscriptoSheet[]> {
       }
     }
 
-    // 2. Inscriptos General (Directo de la solapa de respuestas Ingresos General)
     const genPlayers = solapas.respuestas_4?.players || solapas["Ingresos General"]?.players || [];
     for (const p of genPlayers) {
       const email = (p.email || "").toString().toLowerCase().trim();
@@ -196,9 +195,12 @@ export async function leerPlantel(): Promise<JugadorPlantelSheet[]> {
     if (!Array.isArray(rawValues) || rawValues.length === 0) return [];
 
     const primerElem = rawValues[0]?.[0]?.toString().toLowerCase() || "";
-    const filas = (primerElem.includes("marca") || primerElem.includes("timestamp") || primerElem.includes("correo"))
-      ? rawValues.slice(1)
-      : rawValues;
+    const filas =
+      primerElem.includes("marca") ||
+      primerElem.includes("timestamp") ||
+      primerElem.includes("correo")
+        ? rawValues.slice(1)
+        : rawValues;
 
     return filas
       .map((row: any) => {
@@ -235,7 +237,7 @@ export async function obtenerPlantelSheet(): Promise<JugadorPlantelSheet[]> {
 
 export async function leerEquiposArmados(): Promise<EquipoSede[]> {
   try {
-    const res = await fetch();
+    const res = await fetch(`${APPS_SCRIPT_ARMADO_URL}?action=read_equipos`);
     if (!res.ok) return [];
     const data = await res.json();
     return data?.equipos || [];
@@ -300,9 +302,15 @@ export async function registrarBajaSheet(
 
     const data = await res.json();
     if (data.success || data.status === "success") {
-      return { ok: true, mensaje:  };
+      return {
+        ok: true,
+        mensaje: `Baja de ${apodo} registrada con éxito en la planilla.`,
+      };
     } else {
-      return { ok: false, mensaje: data.error || data.message || "Error al registrar la baja en la planilla." };
+      return {
+        ok: false,
+        mensaje: data.error || data.message || "Error al registrar la baja en la planilla.",
+      };
     }
   } catch (error) {
     console.error("Error al registrar baja:", error);
@@ -310,7 +318,10 @@ export async function registrarBajaSheet(
   }
 }
 
-export async function ejecutarOrganizarConvocadosSheet(): Promise<{ ok: boolean; mensaje: string }> {
+export async function ejecutarOrganizarConvocadosSheet(): Promise<{
+  ok: boolean;
+  mensaje: string;
+}> {
   try {
     const baseUrl = APPS_SCRIPT_INSCRIPTOS_URL.replace("?action=read_solapas", "");
     const res = await fetch(baseUrl, {
@@ -322,7 +333,7 @@ export async function ejecutarOrganizarConvocadosSheet(): Promise<{ ok: boolean;
     });
 
     const data = await res.json();
-    if (data.success || data.status === success) {
+    if (data.success || data.status === "success") {
       return { ok: true, mensaje: "¡Convocatorias reorganizadas en la planilla de Google!" };
     } else {
       return { ok: false, mensaje: data.error || data.message || "Error al organizar convocados." };
@@ -342,7 +353,7 @@ export async function obtenerMaterialesSheet(): Promise<{
   ranking: RankingMaterialSheet[];
 }> {
   try {
-    const res = await fetch();
+    const res = await fetch(`${APPS_SCRIPT_PLANTEL_URL}?action=read_materiales`);
     if (!res.ok) return { historial: [], ranking: [] };
     const data = await res.json();
     return {
